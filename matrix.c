@@ -222,12 +222,72 @@ uint32_t* transposed(const uint32_t* matrix) {
     return result;
 }
 
+struct matrix_add {
+    uint32_t* matrix;
+    uint32_t scalar;
+    uint32_t tid;
+};
+
+
+static void *scalar_worker(void *arg) {
+    struct matrix_add *matrix = (struct matrix_add *) arg;
+    
+    const size_t start = matrix->tid * g_elements / g_nthreads;
+    const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
+
+    for(size_t i = start; i < end; i++) {
+        matrix->matrix[i] += matrix->scalar;
+    }
+
+    return NULL;
+
+}
+
 /**
  * Returns new matrix with scalar added to each element
  */
 uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 
     uint32_t* result = new_matrix();
+
+     result = cloned(matrix); 
+    
+    pthread_t thread_id[g_nthreads];
+
+    struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    if(!m_add) {
+        perror("malloc");
+         return result;
+     }
+
+    for(int i = 0; i < g_nthreads; i++) {
+        m_add[i] = (struct matrix_add) {
+            .matrix = result,
+            .tid = i,
+            .scalar = scalar
+        };
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_create(thread_id + i, NULL, scalar_worker, m_add + i) != 0) {
+            perror("Thread creation failed");
+            return result;
+        }
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_join(thread_id[i], NULL) != 0) {
+            return result;
+        }
+    }
+
+     
+    
+    free(m_add);
+
+
+    return result;
+
 
     /*
         to do
@@ -239,11 +299,11 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
         3 4 + 4 => 7 8
     */
 
-    for (ssize_t i = 0; i < g_elements; i++) {
-        result[i] = matrix[i] + scalar;
-    }
+   // for (ssize_t i = 0; i < g_elements; i++) {
+    //    result[i] = matrix[i] + scalar;
+  //  }
 
-    return result;
+    
 }
 
 /**
