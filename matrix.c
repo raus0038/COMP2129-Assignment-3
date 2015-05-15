@@ -480,23 +480,10 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
     }
 
     result = cloned(matrix);
-    uint32_t* matrix_clone  =  new_matrix();
-    
     
     for(int i = 1; i < exponent; i++) {
-       matrix_clone = cloned(result);
-        for(int j = 0; j < g_width; j++) {
-            for(int k = 0; k < g_width;k++) {
-                int sum = 0;
-                for(int l = 0; l < g_width; l++) {
-                    sum += matrix[j * g_width + l] * matrix_clone[l * g_width + k];
-                    result[j * g_width + k] = sum;
-                }
-            }
-        }
+       result= matrix_mul(result, matrix); 
     }
-
-
 
     /*
         to do
@@ -546,39 +533,15 @@ uint32_t get_sum(const uint32_t* matrix) {
  * Returns the trace of the matrix
  */
 uint32_t get_trace(const uint32_t* matrix) {
-	
-	int row_index = 0;
-	int row = -1;
-	uint32_t trace = 0;
-	for (ssize_t i = 0; i < g_elements; i++) {
 
-		if(i % g_width == 0) {
-			row_index = 0;
-			row++;
-		}
+    uint32_t trace = 0;
 
-		if(row == row_index) {
-			trace += matrix[i];
-		}
-
-
-
-		row_index++;
-
-   	 }
-	
-
-    /*
-        to do
-
-        1 0
-        0 1 => 2
-
-        2 1
-        1 2 => 4
-    */
+    for (ssize_t i = 0; i < g_width; i++) {
+        trace += matrix[i * g_width + i];
+    }
 
     return trace;
+	
 }
 
 /**
