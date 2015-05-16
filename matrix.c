@@ -449,17 +449,19 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static void* mul_worker(void* arg) {
         
         struct matrix_mul *mul_data = arg;
-
-        int row = mul_data->tid;
-
+        int row_count = g_width / g_nthreads;
+        int row = mul_data->tid * (g_width / g_nthreads) ;
+        
+        for(int k = row; k < row + row_count; k++) {        
         for(int i = 0; i < g_width; i++) {
             int sum = 0;
             for(int j = 0; j < g_width; j++) {
                 pthread_mutex_lock(&mutex);
-                sum += mul_data->matrix_a[row * g_width + j] * mul_data->matrix_b[j * g_width + i];
+                sum += mul_data->matrix_a[k * g_width + j] * mul_data->matrix_b[j * g_width + i];
                 pthread_mutex_unlock(&mutex);
-                mul_data->result[row *g_width + i] = sum;
+                mul_data->result[k *g_width + i] = sum;
             }
+        }
         }
 
         return NULL;
