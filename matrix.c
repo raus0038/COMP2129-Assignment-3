@@ -230,15 +230,65 @@ uint32_t* sequence_matrix(uint32_t start, uint32_t step) {
 /**
  * Returns new matrix with elements cloned from given matrix
  */
-uint32_t* cloned(const uint32_t* matrix) {
 
-    uint32_t* result = new_matrix();
+struct matrix_clone {
+    uint32_t tid;
+    const uint32_t* toClone;
+    uint32_t* result;
+};
 
-    for (ssize_t i = 0; i < g_elements; i++) {
-        result[i] = matrix[i];
+static void* clone_worker(void* arg) {
+
+    struct matrix_clone* matrix = (struct matrix_clone*) arg;
+    const size_t start = matrix->tid * g_elements / g_nthreads;
+    const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
+    
+
+    for(size_t i = start; i < end;i++) {
+       matrix->result[i] = matrix->toClone[i];
     }
 
+    return NULL;
+
+}
+
+
+uint32_t* cloned(const uint32_t* matrix) {
+
+    pthread_t thread_id[g_nthreads];
+    uint32_t* result = new_matrix();
+
+    struct matrix_clone *m_add = malloc(sizeof(struct matrix_clone) * g_nthreads);
+    if(!m_add) {
+        perror("malloc");
+         return result;
+     }
+
+    for(int i = 0; i < g_nthreads; i++) {
+        m_add[i] = (struct matrix_clone) {
+            .toClone = matrix,
+            .tid = i,
+            .result = result
+        };
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_create(thread_id + i, NULL, clone_worker, m_add + i) != 0) {
+            perror("Thread creation failed");
+            return result;
+        }
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_join(thread_id[i], NULL) != 0) {
+            return result;
+        }
+    }
+
+    free(m_add);
+
     return result;
+    
 }
 
 /**
@@ -389,7 +439,6 @@ uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
             return result;
         }
     }
-
     free(m_add);
     
 
@@ -436,14 +485,14 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 
 
 struct matrix_mul {
-    uint32_t* matrix_a;
-    uint32_t* matrix_b;
+    const uint32_t* matrix_a;
+    const uint32_t* matrix_b;
     uint32_t* result;
     uint32_t tid;
 };
 
 
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 
 static void* mul_worker(void* arg) {
@@ -456,9 +505,7 @@ static void* mul_worker(void* arg) {
         for(int i = 0; i < g_width; i++) {
             int sum = 0;
             for(int j = 0; j < g_width; j++) {
-                pthread_mutex_lock(&mutex);
                 sum += mul_data->matrix_a[k * g_width + j] * mul_data->matrix_b[j * g_width + i];
-                pthread_mutex_unlock(&mutex);
                 mul_data->result[k *g_width + i] = sum;
             }
         }
@@ -483,8 +530,8 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
     for(int i = 0; i < g_nthreads; i++) {
         m_add[i] = (struct matrix_mul) {
             .result = result,
-            .matrix_a = cloned(matrix_a),
-            .matrix_b = cloned(matrix_b),
+            .matrix_a = matrix_a,
+            .matrix_b = matrix_b,
             .tid = i,
         };
     }
@@ -506,7 +553,6 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
     
 
     return result;
-	
    // uint32_t* result = new_matrix();
 
 
@@ -752,10 +798,17 @@ uint32_t get_minimum(const uint32_t* matrix) {
 /**
  * Returns the largest value in the matrix
  */
+
+struct matrix_max {
+    uint32_t tid;
+    uint32_t scalar;
+    const uint32_t* matrix;
+
+};
 static void* max_worker(void * arg) {
     
     
-    struct matrix_add *matrix = (struct matrix_add *) arg;
+    struct matrix_max *matrix = (struct matrix_max *) arg;
     
     const size_t start = matrix->tid * g_elements / g_nthreads;
     const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
@@ -778,15 +831,15 @@ uint32_t get_maximum(const uint32_t* matrix) {
 
     pthread_t thread_id[g_nthreads];
     
-    struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    struct matrix_max *m_add = malloc(sizeof(struct matrix_max) * g_nthreads);
     if(!m_add) {
         perror("malloc");
          return 0;
      }
 
     for(int i = 0; i < g_nthreads; i++) {
-        m_add[i] = (struct matrix_add) {
-            .matrix = cloned(matrix),
+        m_add[i] = (struct matrix_max) {
+            .matrix = matrix,
             .tid = i,
             .scalar = 0
         };
@@ -834,6 +887,17 @@ uint32_t get_maximum(const uint32_t* matrix) {
 /**
  * Returns the frequency of the value in the matrix
  */
+
+struct matrix_freq {
+    
+    const uint32_t* matrix;
+    uint32_t tid;
+    uint32_t scalar;
+    uint32_t count;
+
+};
+
+
 uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
 
 	int count = 0;
@@ -852,7 +916,13 @@ uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
 
         1 0
         0 1 :: 2 => 0
-    */
-
-    return count;
+   */
+   return count;
 }
+
+
+
+
+
+
+
