@@ -21,6 +21,14 @@ struct matrix_add {
     uint32_t scalar;
     uint32_t tid;
 };
+struct matrix_scalar_mul {
+    
+    uint32_t* result;
+    const uint32_t* matrix;
+    uint32_t tid;
+    uint32_t scalar;
+
+};
 
 ////////////////////////////////
 ///     UTILITY FUNCTIONS    ///
@@ -324,28 +332,27 @@ uint32_t* transposed(const uint32_t* matrix) {
 
 
 static void *scalar_worker(void *arg) {
-    struct matrix_add *matrix = (struct matrix_add *) arg;
+    struct matrix_scalar_mul *matrix = (struct matrix_scalar_mul *) arg;
     
     const size_t start = matrix->tid * g_elements / g_nthreads;
     const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
 
     for(size_t i = start; i < end; i++) {
-        matrix->matrix[i] += matrix->scalar;
+        matrix->result[i] = matrix->matrix[i] + matrix->scalar;
     }
 
     return NULL;
-
 }
 
 static void *multiply_worker(void *arg) {
     
-    struct matrix_add *matrix = (struct matrix_add *) arg;
+    struct matrix_scalar_mul *matrix = (struct matrix_scalar_mul *) arg;
     
     const size_t start = matrix->tid * g_elements / g_nthreads;
     const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
 
     for(size_t i = start; i < end; i++) {
-        matrix->matrix[i] *= matrix->scalar;
+        matrix->result[i] = matrix->matrix[i] * matrix->scalar;
     }
 
     return NULL;
@@ -357,20 +364,21 @@ static void *multiply_worker(void *arg) {
  * Returns new matrix with scalar added to each element
  */
 uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
-    
-    uint32_t* result = cloned(matrix);
+    uint32_t* result = new_matrix();
 
+    
     pthread_t thread_id[g_nthreads];
 
-    struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    struct matrix_scalar_mul  *m_add = malloc(sizeof(struct matrix_scalar_mul) * g_nthreads);
     if(!m_add) {
         perror("malloc");
          return result;
      }
 
     for(int i = 0; i < g_nthreads; i++) {
-        m_add[i] = (struct matrix_add) {
-            .matrix = result,
+        m_add[i] = (struct matrix_scalar_mul) {
+            .matrix = matrix,
+            .result = result,
             .tid = i,
             .scalar = scalar
         };
@@ -388,10 +396,11 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
             return result;
         }
     }
-
     free(m_add);
+    
 
     return result;
+    
     /*
         to do
 
@@ -406,22 +415,24 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 /**
  * Returns new matrix with scalar multiplied to each element
  */
+
 uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
 
-    uint32_t* result = cloned(matrix);
+    uint32_t* result = new_matrix();
 
     
     pthread_t thread_id[g_nthreads];
 
-    struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    struct matrix_scalar_mul  *m_add = malloc(sizeof(struct matrix_scalar_mul) * g_nthreads);
     if(!m_add) {
         perror("malloc");
          return result;
      }
 
     for(int i = 0; i < g_nthreads; i++) {
-        m_add[i] = (struct matrix_add) {
-            .matrix = result,
+        m_add[i] = (struct matrix_scalar_mul) {
+            .matrix = matrix,
+            .result = result,
             .tid = i,
             .scalar = scalar
         };
@@ -490,9 +501,6 @@ struct matrix_mul {
     uint32_t* result;
     uint32_t tid;
 };
-
-
-
 
 
 static void* mul_worker(void* arg) {
@@ -829,7 +837,7 @@ static void* max_worker(void * arg) {
     for(size_t i = start; i < end; i++) {
        if(matrix->matrix[i] > max) {
              max = matrix->matrix[i];
-             matrix->scalar = matrix->matrix[i];
+             matrix->scalar = max;
        }
     }
 
