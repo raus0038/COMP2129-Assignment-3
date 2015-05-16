@@ -703,9 +703,20 @@ uint32_t get_sum(const uint32_t* matrix) {
 uint32_t get_trace(const uint32_t* matrix) {
 
     uint32_t trace = 0;
+    int row_index = 0;
+    int row = -1;
 
-    for (ssize_t i = 0; i < g_width; i++) {
-        trace += matrix[i * g_width + i];
+    for (ssize_t i = 0; i < g_elements; i++) {
+        if(i % g_width == 0) {
+            row_index = 0;
+            row++;
+        }
+
+        if(row == row_index) {
+            trace += matrix[i];
+        }
+
+        row_index++;
     }
 
     return trace;
