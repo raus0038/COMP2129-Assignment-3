@@ -433,20 +433,90 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 /**
  * Returns new matrix, multiplying the two matrices together
  */
-uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
-	
-    uint32_t* result = new_matrix();
 
 
-    for(int j = 0; j < g_width; j++) {
-        for(int k = 0; k < g_width;k++) {
+struct matrix_mul {
+    uint32_t* matrix_a;
+    uint32_t* matrix_b;
+    uint32_t* result;
+    uint32_t tid;
+};
+
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
+static void* mul_worker(void* arg) {
+        
+        struct matrix_mul *mul_data = arg;
+
+        int row = mul_data->tid;
+
+        for(int i = 0; i < g_width; i++) {
             int sum = 0;
-            for(int l = 0; l < g_width; l++) {
-                sum += matrix_a[j * g_width + l] * matrix_b[l * g_width + k];
-                result[j * g_width + k] = sum;
+            for(int j = 0; j < g_width; j++) {
+                pthread_mutex_lock(&mutex);
+                sum += mul_data->matrix_a[row * g_width + j] * mul_data->matrix_b[j * g_width + i];
+                pthread_mutex_unlock(&mutex);
+                mul_data->result[row *g_width + i] = sum;
             }
         }
+
+        return NULL;
+
+}
+uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
+    
+    uint32_t* result = new_matrix();
+
+    
+    pthread_t thread_id[g_nthreads];
+
+    struct matrix_mul *m_add = malloc(sizeof(struct matrix_mul) * g_nthreads);
+    if(!m_add) {
+        perror("malloc");
+         return result;
+     }
+
+    for(int i = 0; i < g_nthreads; i++) {
+        m_add[i] = (struct matrix_mul) {
+            .result = result,
+            .matrix_a = cloned(matrix_a),
+            .matrix_b = cloned(matrix_b),
+            .tid = i,
+        };
     }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_create(thread_id + i, NULL, mul_worker, m_add + i) != 0) {
+            perror("Thread creation failed");
+            return result;
+        }
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_join(thread_id[i], NULL) != 0) {
+            return result;
+        }
+    }
+
+    free(m_add);
+    
+
+    return result;
+	
+   // uint32_t* result = new_matrix();
+
+
+    //for(int j = 0; j < g_width; j++) {
+      //  for(int k = 0; k < g_width;k++) {
+        //    int sum = 0;
+          //  for(int l = 0; l < g_width; l++) {
+            //    sum += matrix_a[j * g_width + l] * matrix_b[l * g_width + k];
+              //  result[j * g_width + k] = sum;
+           // }
+       // }
+   // }
 
     /*
         to do
@@ -459,7 +529,7 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
     */
 
 
-    return result;
+   // return result;
 }
 
 /**
@@ -508,15 +578,66 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 /**
  * Returns the sum of all elements
  */
+
+static void* sum_worker(void * arg) {
+    
+    
+    struct matrix_add *matrix = (struct matrix_add *) arg;
+    
+    const size_t start = matrix->tid * g_elements / g_nthreads;
+    const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
+
+    for(size_t i = start; i < end; i++) {
+      matrix->scalar += matrix->matrix[i];
+    }
+
+    return NULL;
+
+
+}
+
 uint32_t get_sum(const uint32_t* matrix) {
 
-	int sum = 0;
+    pthread_t thread_id[g_nthreads];
+    int sum = 0;
+    
+    struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    if(!m_add) {
+        perror("malloc");
+         return 0;
+     }
 
-	for (ssize_t i = 0; i < g_elements; i++) {
-        sum += matrix[i];
-   	 }
+    for(int i = 0; i < g_nthreads; i++) {
+        m_add[i] = (struct matrix_add) {
+            .matrix = cloned(matrix),
+            .tid = i,
+            .scalar = 0
+        };
+    }
 
-   	 return sum;
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_create(thread_id + i, NULL, sum_worker, m_add + i) != 0) {
+            perror("Thread creation failed");
+            return 0;
+        }
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_join(thread_id[i], NULL) != 0) {
+            return 0;
+        }
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        sum += m_add[i].scalar;
+    }
+
+    free(m_add);
+    
+
+    return sum;
+    
+ }
 
     /*
         to do
@@ -527,7 +648,6 @@ uint32_t get_sum(const uint32_t* matrix) {
         1 1
         1 1 => 4
     */
-}
 
 /**
  * Returns the trace of the matrix
@@ -547,16 +667,74 @@ uint32_t get_trace(const uint32_t* matrix) {
 /**
  * Returns the smallest value in the matrix
  */
+
+static void* min_worker(void * arg) {
+    
+    
+    struct matrix_add *matrix = (struct matrix_add *) arg;
+    
+    const size_t start = matrix->tid * g_elements / g_nthreads;
+    const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
+     
+    uint32_t minimum = UINT32_MAX;
+
+    for(size_t i = start; i < end; i++) {
+       if(matrix->matrix[i] < minimum) {
+             minimum = matrix->matrix[i];
+             matrix->scalar = matrix->matrix[i];
+       }
+    }
+
+    return NULL;
+
+
+}
+
 uint32_t get_minimum(const uint32_t* matrix) {
 
-	uint32_t minimum = UINT32_MAX;
+    pthread_t thread_id[g_nthreads];
+    
+    struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    if(!m_add) {
+        perror("malloc");
+         return 0;
+     }
 
-	for (ssize_t i = 0; i < g_elements; i++) {
-        if(matrix[i] < minimum) {
-        	minimum = matrix[i];
+    for(int i = 0; i < g_nthreads; i++) {
+        m_add[i] = (struct matrix_add) {
+            .matrix = cloned(matrix),
+            .tid = i,
+            .scalar = 0
+        };
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_create(thread_id + i, NULL, min_worker, m_add + i) != 0) {
+            perror("Thread creation failed");
+            return 0;
         }
-   	 }
+    }
 
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_join(thread_id[i], NULL) != 0) {
+            return 0;
+        }
+    }
+    
+    uint32_t minimum = UINT32_MAX;
+
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(m_add[i].scalar < minimum) {
+            minimum = m_add[i].scalar;
+        }
+    }
+
+    free(m_add);
+    
+
+    return minimum;
+    
     /*
         to do
 
@@ -567,21 +745,77 @@ uint32_t get_minimum(const uint32_t* matrix) {
         2 1 => 1
     */
 
-    return minimum;
 }
 
 /**
  * Returns the largest value in the matrix
  */
+static void* max_worker(void * arg) {
+    
+    
+    struct matrix_add *matrix = (struct matrix_add *) arg;
+    
+    const size_t start = matrix->tid * g_elements / g_nthreads;
+    const size_t end = matrix->tid == g_nthreads - 1 ? g_elements : (matrix->tid + 1) * g_elements / g_nthreads;
+     
+    uint32_t max = 0;
+
+    for(size_t i = start; i < end; i++) {
+       if(matrix->matrix[i] > max) {
+             max = matrix->matrix[i];
+             matrix->scalar = matrix->matrix[i];
+       }
+    }
+
+    return NULL;
+
+
+}
+
 uint32_t get_maximum(const uint32_t* matrix) {
 
-	uint32_t max = 0;
+    pthread_t thread_id[g_nthreads];
+    
+    struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    if(!m_add) {
+        perror("malloc");
+         return 0;
+     }
 
-	for (ssize_t i = 0; i < g_elements; i++) {
-        if(matrix[i] > max) {
-        	max = matrix[i];
+    for(int i = 0; i < g_nthreads; i++) {
+        m_add[i] = (struct matrix_add) {
+            .matrix = cloned(matrix),
+            .tid = i,
+            .scalar = 0
+        };
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_create(thread_id + i, NULL, max_worker, m_add + i) != 0) {
+            perror("Thread creation failed");
+            return 0;
         }
-   	 }
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_join(thread_id[i], NULL) != 0) {
+            return 0;
+        }
+    }
+    
+    uint32_t max = 0;
+
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(m_add[i].scalar > max) {
+            max = m_add[i].scalar;
+        }
+    }
+
+    free(m_add);
+    
+
+    return max;
 
     /*
         to do
@@ -593,7 +827,6 @@ uint32_t get_maximum(const uint32_t* matrix) {
         2 1 => 4
     */
 
-    return max;
 }
 
 /**
