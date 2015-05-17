@@ -348,7 +348,7 @@ uint32_t* transposed(const uint32_t* matrix) {
 
 
 
-/*static void *scalar_worker(void *arg) {
+static void *scalar_worker(void *arg) {
     struct matrix_scalar_mul *matrix = (struct matrix_scalar_mul *) arg;
     
     const size_t start = matrix->tid * g_elements / g_nthreads;
@@ -375,7 +375,7 @@ static void *multiply_worker(void *arg) {
     return NULL;
 
 
-}*/
+}
 
 /**
  * Returns new matrix with scalar added to each element
@@ -383,9 +383,9 @@ static void *multiply_worker(void *arg) {
 uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 
 
-    uint32_t* result = cloned(matrix);
+    uint32_t* result = new_matrix();
 
-   /* 
+   
     pthread_t thread_id[g_nthreads];
 
     struct matrix_scalar_mul  *m_add = malloc(sizeof(struct matrix_scalar_mul) * g_nthreads);
@@ -417,10 +417,6 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
     }
     free(m_add);
     
-*/
-    for(size_t i = 0; i < g_elements; i++) {
-        result[i] = matrix[i] + scalar;
-    }
     return result;
     
     /*
@@ -440,10 +436,10 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 
 uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
 
-    uint32_t* result = cloned(matrix);
+    uint32_t* result = new_matrix();
 
     
-    /*pthread_t thread_id[g_nthreads];
+    pthread_t thread_id[g_nthreads];
 
     struct matrix_scalar_mul  *m_add = malloc(sizeof(struct matrix_scalar_mul) * g_nthreads);
     if(!m_add) {
@@ -472,12 +468,7 @@ uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
             return result;
         }
     }
-    free(m_add);*/
-    
-
-    for(size_t i = 0; i < g_elements; i++) {
-        result[i] = matrix[i] * scalar;
-    }
+    free(m_add);
     return result;
     /*
         to do
@@ -682,7 +673,7 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
  * Returns the sum of all elements
  */
 
-/*static void* sum_worker(void * arg) {
+static void* sum_worker(void * arg) {
     
     
     struct matrix_add *matrix = (struct matrix_add *) arg;
@@ -698,22 +689,22 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
 
 }
-*/
+
 
 uint32_t get_sum(const uint32_t* matrix) {
 
-   // pthread_t thread_id[g_nthreads];
+   pthread_t thread_id[g_nthreads];
     uint32_t sum = 0;
     
-    /*struct matrix_add *m_add = malloc(sizeof(struct matrix_add) * g_nthreads);
+    struct matrix_trace *m_add = malloc(sizeof(struct matrix_trace) * g_nthreads);
     if(!m_add) {
         perror("malloc");
          return 0;
      }
 
     for(int i = 0; i < g_nthreads; i++) {
-        m_add[i] = (struct matrix_add) {
-            .matrix = cloned(matrix),
+        m_add[i] = (struct matrix_trace) {
+            .matrix = matrix,
             .tid = i,
             .scalar = 0
         };
@@ -736,15 +727,9 @@ uint32_t get_sum(const uint32_t* matrix) {
         sum += m_add[i].scalar;
     }
 
-    free(m_add);*/
+    free(m_add);
 
-
-   for(size_t i = 0; i < g_elements; i++) {
-        sum += matrix[i];
-   }    
-
-    return sum;
-    
+    return sum;    
  }
 
     /*
@@ -781,8 +766,7 @@ void* trace_worker(void* arg) {
 
 uint32_t get_trace(const uint32_t* matrix) {
 
-    uint32_t trace = 0
-        ;
+    uint32_t trace = 0 ;
     pthread_t thread_id[g_nthreads];
     
     struct matrix_trace *m_add = malloc(sizeof(struct matrix_trace) * g_nthreads);
@@ -818,7 +802,6 @@ uint32_t get_trace(const uint32_t* matrix) {
 
     free(m_add);
     
-
     return trace;
 
 
