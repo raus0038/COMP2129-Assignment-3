@@ -724,12 +724,14 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
     
     for(int i = 1; i < exponent; i++) {
-       if(i == 1)
+       if(i == 1) {
         result = matrix_mul(matrix, matrix);
-       else
-       memmove(newResult, result, sizeof(uint32_t) * g_elements);
-       free(result);
-       result  = matrix_mul(newResult, matrix); 
+       }
+       else {
+        memmove(newResult, result, sizeof(uint32_t) * g_elements);
+        free(result);
+        result  = matrix_mul(newResult, matrix); 
+       }
     }
   
     /*
