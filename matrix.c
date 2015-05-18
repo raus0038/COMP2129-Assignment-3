@@ -895,12 +895,15 @@ uint32_t get_trace(const uint32_t* matrix) {
     int trace = 0;
 
     for(int i = 0; i < g_width; i++) {
-
-        trace += matrix[CELL(i,i)] + matrix[CELL(g_width - i - 1, g_width -i - 1)];
-
         if(g_width - i - 1  < i) {
             break;
         }
+
+        if(i == (g_width - i - 1)) {
+            trace += matrix[CELL(i,i)];
+            break;
+        }
+        trace += matrix[CELL(i,i)] + matrix[CELL(g_width - i - 1, g_width -i - 1)];
 
         
     }
