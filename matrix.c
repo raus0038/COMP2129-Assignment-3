@@ -15,6 +15,7 @@ static ssize_t g_height = 0;
 static ssize_t g_elements = 0;
 
 static ssize_t g_nthreads = 1;
+#define  CELL(x,y) ((y) * g_width + (x))
 
 struct matrix_add {
     uint32_t* matrix;
@@ -557,6 +558,7 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
  * Returns new matrix, multiplying the two matrices together
  */
 
+pthread_mutex_t mutex;
 
 struct matrix_mul {
     const uint32_t* matrix_a;
@@ -572,14 +574,12 @@ static void* mul_worker(void* arg) {
         int row_count = g_width / g_nthreads;
         int row = mul_data->tid * (g_width / g_nthreads) ;
         
-        for(int k = row; k < row + row_count; k++) {        
-        for(int i = 0; i < g_width; i++) {
-            int sum = 0;
-            for(int j = 0; j < g_width; j++) {
-                sum += mul_data->matrix_a[k * g_width + j] * mul_data->matrix_b[j * g_width + i];
-                mul_data->result[k *g_width + i] = sum;
+        for(int y = row; y < row + row_count; y++) {        
+          for(int k = 0; k < g_width; k++) {
+            for(int x = 0; x < g_width; x++) {
+                mul_data->result[CELL(x, y)]  += mul_data->matrix_a[CELL(k, y)] * mul_data->matrix_b[CELL(x, k)];
             }
-        }
+          }
         }
 
         return NULL;
@@ -643,10 +643,13 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
       return result;
     }
 
-    result = cloned(matrix);
-    
+
     for(int i = 1; i < exponent; i++) {
-       result= matrix_mul(result, matrix); 
+        if(i == 1) {
+            result= matrix_mul(matrix, matrix); 
+        }
+        else
+            result = matrix_mul(result, matrix);
     }
 
     /*
