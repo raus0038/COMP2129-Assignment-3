@@ -753,7 +753,7 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
 
 
-static void* sum_worker(void * arg) {
+/*static void* sum_worker(void * arg) {
     
     
     struct matrix_add *matrix = (struct matrix_add *) arg;
@@ -770,13 +770,13 @@ static void* sum_worker(void * arg) {
 
 }
 
-
+*/
 uint32_t get_sum(const uint32_t* matrix) {
 
-   pthread_t thread_id[g_nthreads];
+ //  pthread_t thread_id[g_nthreads];
     uint32_t sum = 0;
     
-    struct matrix_trace *m_add = malloc(sizeof(struct matrix_trace) * g_nthreads);
+  /*  struct matrix_trace *m_add = malloc(sizeof(struct matrix_trace) * g_nthreads);
     if(!m_add) {
         perror("malloc");
          return 0;
@@ -807,7 +807,23 @@ uint32_t get_sum(const uint32_t* matrix) {
         sum += m_add[i].scalar;
     }
 
-    free(m_add);
+    free(m_add); */
+
+   int counter = 0;
+    for(int i = 0; i < g_width; i++) {
+        for(int j = 0; j < g_width; j++) {
+            sum += matrix[CELL(j, i)] + matrix[CELL(g_width - j - 1, g_width - i - 1)];
+            ++counter;
+
+            if(counter >= g_elements / 2) {
+                break;
+            }        
+        }
+
+        if(counter >= g_elements / 2) {
+            break;
+        }
+    }
 
     return sum;    
  }
