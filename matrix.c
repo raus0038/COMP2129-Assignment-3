@@ -569,7 +569,7 @@ struct matrix_mul {
 
 static void* mul_worker(void* arg) {
         
-        struct matrix_mul *mul_data = arg;
+        struct matrix_mul *mul_data = (struct matrix_mul*) arg;
         int row_count = (mul_data->tid * g_width) / g_nthreads;
         int row = ((mul_data->tid + 1) * g_width) / g_nthreads;
         
@@ -628,9 +628,86 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 /**
  * Returns new matrix, powering the matrix to the exponent
  */
+
+/*struct pow_struct {
+    const uint32_t* matrix;
+    uint32_t* result;
+    int exponent;
+
+};
+
+void* pow_worker(void* arg) {
+        
+    struct pow_struct * mul_data = (struct pow_struct*) arg;
+
+    for(int i = 0; i < mul_data->exponent; i++) {
+        
+        if(i == 0) {
+            mul_data->result = matrix_mul(mul_data->matrix, mul_data->matrix);
+        }
+        else
+            mul_data->result = matrix_mul(mul_data->result, mul_data->matrix);
+
+    }
+
+    return NULL;
+
+}
+
+*/
 uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
-    uint32_t* result = new_matrix();
+    uint32_t* result;
+
+   /* pthread_t thread_id[g_nthreads];
+
+    struct pow_struct *m_add = malloc(sizeof(struct pow_struct) * g_nthreads);
+    if(!m_add) {
+        perror("malloc");
+         return result;
+     }
+
+    for(int i = 0; i < g_nthreads; i++) {
+        m_add[i] = (struct pow_struct) {
+            .result = new_matrix(),
+            .exponent = exponent / g_nthreads,
+            .matrix = matrix
+        };
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_create(thread_id + i, NULL, pow_worker, m_add + i) != 0) {
+            perror("Thread creation failed");
+            return result;
+        }
+    }
+
+    for(size_t i = 0; i < g_nthreads; i++) {
+        if(pthread_join(thread_id[i], NULL) != 0) {
+            return result;
+        }
+    }
+
+    if(g_nthreads == 1) {
+        result = m_add[0].result; 
+    }
+
+    for(int i = 0; i < g_nthreads; i++) {
+        if(i == 0)
+            result = matrix_mul(m_add[i].matrix, m_add[i + 1].matrix);
+        else
+            result = matrix_mul(result, m_add[i + 1].matrix);
+
+        if(i + 1 == g_nthreads) {
+            break;
+        }
+
+    }
+
+    free(m_add);
+    
+
+    return result; */
 
     if(exponent == 0) {
       result = identity_matrix();
@@ -673,6 +750,8 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 /**
  * Returns the sum of all elements
  */
+
+
 
 static void* sum_worker(void * arg) {
     
@@ -747,27 +826,33 @@ uint32_t get_sum(const uint32_t* matrix) {
  * Returns the trace of the matrix
  */
 
-void* trace_worker(void* arg) {
+/*void* trace_worker(void* arg) {
 
     struct matrix_trace *matrix = (struct matrix_trace *) arg;
     
-    const size_t start = matrix->tid * g_nthreads / g_width;
-    const size_t end = matrix->tid == g_nthreads - 1 ? g_width : (matrix->tid + 1) * g_nthreads / g_width;
+    const size_t start = (matrix->tid * g_width) / g_nthreads;
+    const size_t end =  (((matrix->tid + 1) * g_width) / g_nthreads);
      
 
     for(size_t i = start; i < end; i++) {
+               
+       
+        matrix->scalar += matrix->matrix[(end - i - 1) * g_width + (end - i - 1)] +  matrix->matrix[i * g_width + i];
 
-       matrix->scalar += matrix->matrix[i * g_width + i];
+      if(end - i - 2  < i) {
+            break;
+       } 
     }
 
     return NULL;
     
 
 }
-
+*/
 uint32_t get_trace(const uint32_t* matrix) {
 
-    uint32_t trace = 0 ;
+   /* uint32_t trace = 0 ;
+
     pthread_t thread_id[g_nthreads];
     
     struct matrix_trace *m_add = malloc(sizeof(struct matrix_trace) * g_nthreads);
@@ -804,7 +889,23 @@ uint32_t get_trace(const uint32_t* matrix) {
     free(m_add);
     
     return trace;
+*/
 
+
+    int trace = 0;
+
+    for(int i = 0; i < g_width; i++) {
+
+        trace += matrix[CELL(i,i)] + matrix[CELL(g_width - i - 1, g_width -i - 1)];
+
+        if(g_width - i - 1  < i) {
+            break;
+        }
+
+        
+    }
+
+    return trace;
 
 }
 
@@ -848,7 +949,7 @@ uint32_t get_minimum(const uint32_t* matrix) {
         m_add[i] = (struct matrix_trace) {
             .matrix = matrix,
             .tid = i,
-            .scalar = 0
+            .scalar = matrix[0]
         };
     }
 
@@ -1061,7 +1162,6 @@ uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
 
 
 }
-
 
 
 
