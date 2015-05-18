@@ -558,7 +558,6 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
  * Returns new matrix, multiplying the two matrices together
  */
 
-pthread_mutex_t mutex;
 
 struct matrix_mul {
     const uint32_t* matrix_a;
@@ -571,10 +570,10 @@ struct matrix_mul {
 static void* mul_worker(void* arg) {
         
         struct matrix_mul *mul_data = arg;
-        int row_count = g_width / g_nthreads;
-        int row = mul_data->tid * (g_width / g_nthreads) ;
+        int row_count = (mul_data->tid * g_width) / g_nthreads;
+        int row = ((mul_data->tid + 1) * g_width) / g_nthreads;
         
-        for(int y = row; y < row + row_count; y++) {        
+        for(int y = row_count; y < row; y++) {        
           for(int k = 0; k < g_width; k++) {
             for(int x = 0; x < g_width; x++) {
                 mul_data->result[CELL(x, y)]  += mul_data->matrix_a[CELL(k, y)] * mul_data->matrix_b[CELL(x, k)];
@@ -638,18 +637,17 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
       return result;
     }
 
-    if(exponent == 1) {
+    if(exponent == 1) { 
       result = cloned(matrix);
       return result;
     }
 
-
+    
     for(int i = 1; i < exponent; i++) {
-        if(i == 1) {
-            result= matrix_mul(matrix, matrix); 
-        }
-        else
-            result = matrix_mul(result, matrix);
+       if(i == 1)
+        result = matrix_mul(matrix, matrix);
+       else
+       result= matrix_mul(result, matrix); 
     }
 
     /*
