@@ -719,13 +719,19 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
       return result;
     }
 
-    
+    else {
+        
+        return matrix_mul(matrix, matrix_pow(matrix, exponent - 1));
+
+    }
+
+   /* 
     for(int i = 1; i < exponent; i++) {
        if(i == 1)
         result = matrix_mul(matrix, matrix);
        else
        result= matrix_mul(result, matrix); 
-    }
+    }*/
 
     /*
         to do
