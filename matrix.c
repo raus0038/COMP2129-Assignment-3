@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <inttypes.h>
-
+#include <string.h>
 #include "matrix.h"
 
 static uint32_t g_seed = 0;
@@ -658,6 +658,7 @@ void* pow_worker(void* arg) {
 uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
     uint32_t* result;
+    uint32_t* newResult = new_matrix();
 
    /* pthread_t thread_id[g_nthreads];
 
@@ -719,20 +720,18 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
       return result;
     }
 
-    else {
-        
-        return matrix_mul(matrix, matrix_pow(matrix, exponent - 1));
+  
 
-    }
-
-   /* 
+    
     for(int i = 1; i < exponent; i++) {
        if(i == 1)
         result = matrix_mul(matrix, matrix);
        else
-       result= matrix_mul(result, matrix); 
-    }*/
-
+       memmove(newResult, result, sizeof(uint32_t) * g_elements);
+       free(result);
+       result  = matrix_mul(newResult, matrix); 
+    }
+  
     /*
         to do
 
@@ -745,7 +744,7 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
         1 2        199 290
         3 4 ^ 4 => 435 634
     */
-
+    free(newResult);
     return result;
 }
 
