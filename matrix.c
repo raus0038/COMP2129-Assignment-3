@@ -644,6 +644,7 @@ struct pow_struct {
     uint32_t* result;
     int tid;
     int exponent;
+    int threads;
 
 };
 
@@ -651,23 +652,30 @@ void* pow_worker(void* arg) {
         
     struct pow_struct * mul_data = (struct pow_struct*) arg;
     const int elements = g_elements;
-    const int threads = g_nthreads;
-    int multiplyCount = (mul_data->tid * threads) / mul_data->exponent;
+    int threads = mul_data->threads;
+    int multiplyCount;
+    int start = 0;
+    if(threads == 1) {
+        multiplyCount = mul_data->exponent;
+        start = 1;
+    }
+    else {
 
-    if(mul_data->tid >= mul_data->exponent) {
-        mul_data->result = identity_matrix();
-        return NULL;
+  
+       multiplyCount =  ((mul_data->exponent) / (threads)) ;
+
+  
+       start = 1; 
     }
 
-   if(multiplyCount == 0) {
-        mul_data->result = identity_matrix();
+   
 
-        return NULL;
-   }
 
-    for(int i = 0; i < multiplyCount; i++) {
+
+
+    for(int i = start; i <  multiplyCount; i++) {
         
-        if(i == 0) {
+        if(i == start) {
             mul_data->result = matrix_mul(mul_data->matrix, mul_data->matrix);
         }
         else {
@@ -698,7 +706,10 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
     }
 
     
-    const int threads = g_nthreads;
+    int threads = g_nthreads;
+    if(threads > exponent / 2) {
+        threads = exponent / 2;
+    }
 
     pthread_t thread_id[threads];
 
@@ -714,7 +725,8 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
             .result = new_matrix(),
             .tid = i,
             .matrix = matrix,
-            .exponent = exponent
+            .exponent = exponent,
+            .threads = threads
         };
     }
 
@@ -733,7 +745,7 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
     }
 
     if(threads == 1) {
-        result = m_add[0].result; 
+        memmove(result, m_add[0].result, sizeof(uint32_t) * noElements); 
     }
 
     for(int i = 0; i < threads - 1; i++) {
@@ -743,8 +755,9 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
             memmove(result, matrix_mul(result, m_add[i + 1].result), sizeof(uint32_t) * noElements);
         }
 
-    }    
+    }   
 
+ 
 /*
   for(int i = 1; i < exponent; i++) {
        if(i == 1) {
