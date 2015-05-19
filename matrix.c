@@ -642,7 +642,6 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 struct pow_struct {
     const uint32_t* matrix;
     uint32_t* result;
-    int tid;
     int exponent;
     int threads;
 
@@ -655,31 +654,26 @@ void* pow_worker(void* arg) {
     int threads = mul_data->threads;
     int multiplyCount;
     int start = 0;
+    uint32_t* newResult;
+
     if(threads == 1) {
         multiplyCount = mul_data->exponent;
         start = 1;
     }
     else {
-
-  
        multiplyCount =  ((mul_data->exponent) / (threads)) ;
-
-  
        start = 1; 
     }
 
-   
-
-
-
-
-    for(int i = start; i <  multiplyCount; i++) {
+    for(int i = start; i <  multiplyCount; ++i) {
         
         if(i == start) {
             mul_data->result = matrix_mul(mul_data->matrix, mul_data->matrix);
         }
         else {
-            memmove(mul_data->result, matrix_mul(mul_data->result, mul_data->matrix),  sizeof(uint32_t) * elements);
+            newResult = matrix_mul(mul_data->result, mul_data->matrix);
+            memmove(mul_data->result, newResult,  sizeof(uint32_t) * elements);
+            free(newResult);
         }
 
     }
@@ -691,7 +685,7 @@ void* pow_worker(void* arg) {
 
 uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
-    uint32_t* result = new_matrix(); 
+    uint32_t* result;
     const int noElements = g_elements;
     switch(exponent) {
         case 0: {
@@ -705,6 +699,7 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
         }
     }
 
+    result = new_matrix();
     
     int threads = g_nthreads;
     if(threads > exponent / 2) {
@@ -722,8 +717,7 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
     for(int i = 0; i < threads; i++) {
         m_add[i] = (struct pow_struct) {
-            .result = new_matrix(),
-            .tid = i,
+            .result = result,
             .matrix = matrix,
             .exponent = exponent,
             .threads = threads
@@ -731,31 +725,39 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
     }
 
 
-    for(size_t i = 0; i < threads; i++) {
+    for(size_t i = 0; i < threads; ++i) {
         if(pthread_create(thread_id + i, NULL, pow_worker, m_add + i) != 0) {
             perror("Thread creation failed");
             return result;
         }
     }
 
-    for(size_t i = 0; i < threads; i++) {
+    for(size_t i = 0; i < threads; ++i) {
         if(pthread_join(thread_id[i], NULL) != 0) {
             return result;
         }
+
+
     }
 
     if(threads == 1) {
-        memmove(result, m_add[0].result, sizeof(uint32_t) * noElements); 
+        memmove(result, m_add[0].result, sizeof(uint32_t) * noElements);
+        free(m_add[0].result);
+        free(m_add);
+        return result; 
     }
 
-    for(int i = 0; i < threads - 1; i++) {
+
+    result = matrix_pow(m_add[0].result, threads);
+
+  /*  for(int i = 0; i < threads - 1; ++i) {
         if(i == 0)
             result = matrix_mul(m_add[i].result, m_add[i + 1].result);
         else {
             memmove(result, matrix_mul(result, m_add[i + 1].result), sizeof(uint32_t) * noElements);
         }
 
-    }   
+    }   */
 
  
 /*
