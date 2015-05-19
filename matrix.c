@@ -375,7 +375,7 @@ static void *multiply_worker(void *arg) {
 
 
     for(size_t i = start; i < end; i++) {
-        matrix->result[i] = matrix->matrix[i] * matrix->scalar;
+        matrix->result[i] = matrix->matrix[i] * matrix->scalar; 
     }
 
     return NULL;
@@ -583,9 +583,9 @@ static void* mul_worker(void* arg) {
         const int row = ((mul_data->tid + 1) * width) / threads;
        
         
-        for(int y = row_count; y < row; y++) {        
-          for(int k = 0; k < width; k++) {
-            for(int x = 0; x < width; x++) {
+        for(int y = row_count; y < row; ++y) {        
+          for(int k = 0; k < width; ++k) {
+            for(int x = 0; x < width; ++x) {
                 mul_data->result[CELL(x, y)]  += mul_data->matrix_a[CELL(k, y)] * mul_data->matrix_b[CELL(x, k)];
             }
           }
@@ -639,6 +639,9 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
  * Returns new matrix, powering the matrix to the exponent
  */
 
+pthread_mutex_t mutex;
+pthread_mutex_t mutexTwo;
+
 struct pow_struct {
     const uint32_t* matrix;
     uint32_t* result;
@@ -653,27 +656,28 @@ void* pow_worker(void* arg) {
     const int elements = g_elements;
     int threads = mul_data->threads;
     int multiplyCount;
-    int start = 0;
+    int start = 1;
     uint32_t* newResult;
 
     if(threads == 1) {
         multiplyCount = mul_data->exponent;
-        start = 1;
     }
     else {
        multiplyCount =  ((mul_data->exponent) / (threads)) ;
-       start = 1; 
     }
-
     for(int i = start; i <  multiplyCount; ++i) {
         
         if(i == start) {
+            pthread_mutex_lock(&mutex);
             mul_data->result = matrix_mul(mul_data->matrix, mul_data->matrix);
+            pthread_mutex_unlock(&mutex);
         }
         else {
+            pthread_mutex_lock(&mutexTwo);
             newResult = matrix_mul(mul_data->result, mul_data->matrix);
             memmove(mul_data->result, newResult,  sizeof(uint32_t) * elements);
             free(newResult);
+            pthread_mutex_unlock(&mutexTwo);
         }
 
     }
@@ -698,13 +702,13 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
             return result;
         }
     }
-
-    result = new_matrix();
     
     int threads = g_nthreads;
-    if(threads > exponent / 2) {
-        threads = exponent / 2;
+    if(threads > (exponent >> 1)) {
+        threads = exponent >> 1;
     }
+
+    result = new_matrix();
 
     pthread_t thread_id[threads];
 
@@ -740,15 +744,20 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
     }
 
+    memmove(result, m_add[0].result, sizeof(uint32_t) * noElements);
+
+    for(int i = 0; i < threads; i++) {
+        free(m_add[i].result);
+    }
+
+    free(m_add);
+
     if(threads == 1) {
-        memmove(result, m_add[0].result, sizeof(uint32_t) * noElements);
-        free(m_add[0].result);
-        free(m_add);
         return result; 
     }
 
-
-    result = matrix_pow(m_add[0].result, threads);
+    
+   return matrix_pow(result, threads);
 
   /*  for(int i = 0; i < threads - 1; ++i) {
         if(i == 0)
@@ -783,11 +792,7 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
         1 2        199 290
         3 4 ^ 4 => 435 634
     */
-    for(int i = 0; i < threads; i++) {
-        free(m_add[i].result);
-    }
-    free(m_add);
-    return result;
+   
 }
 
 ////////////////////////////////
@@ -824,7 +829,17 @@ uint32_t get_sum(const uint32_t* matrix) {
  //  pthread_t thread_id[threads];
     uint32_t sum = 0;
    const int width = g_width;
-    const int noElement = g_elements;
+
+   switch(width) {
+        case 1: {
+            return matrix[0];
+        }
+
+        case 2: {
+            return matrix[0] + matrix[1] + matrix[2] + matrix[3];
+        }
+
+   };
     
    /* struct matrix_trace *m_add = malloc(sizeof(struct matrix_trace) * threads);
     if(!m_add) {
@@ -861,19 +876,9 @@ uint32_t get_sum(const uint32_t* matrix) {
 
     return sum;
 */
-   int counter = 0;
-    for(int i = 0; i < width; i++) {
+    for(int i = 0; i < width / 2; i++) {
         for(int j = 0; j < width; j++) {
             sum += matrix[CELL(j, i)] + matrix[CELL(width - j - 1, width - i - 1)];
-            ++counter;
-
-            if(2 * counter >= noElement) {
-                break;
-            }        
-        }
-
-        if(2 * counter >= noElement) {
-            break;
         }
     }
 
@@ -967,7 +972,7 @@ uint32_t get_trace(const uint32_t* matrix) {
     int trace = 0;
     const int width = g_width;
 
-    for(int i = 0; i < width; i++) {
+    for(int i = 0; i < width / 2; i++) {
         if(width - i - 1  < i) {
             break;
         }
